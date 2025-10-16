@@ -67,11 +67,6 @@ def app_funcao_relatorio_macro(base_filtrada):
     # Aplicando os emojis à coluna 'Classificação'
     base_filtrada['Cat.'] = base_filtrada['Classificação'].map(emoji_map)
 
-    # Selecionar as variáveis específicas
-    base_filtrada = base_filtrada[
-        ["Cat.","post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa"]
-        ]
-
     # Quero que as justificativas dos casos aprovados fiquem em uma letra cinza com transparência
     def style_justificativa(row):
         if row['Classificação'] == 'Aprovado':
@@ -85,7 +80,6 @@ def app_funcao_relatorio_macro(base_filtrada):
     st.dataframe(
         base_filtrada,
         column_config={
-            'Cat.': 'Cat.',
             "post_pk": st.column_config.TextColumn("ID da Publicação"),
             "nome_campanha": 'Nome da Campanha',
             "post_type": 'Tipo de Publicação',
