@@ -67,6 +67,11 @@ def app_funcao_relatorio_macro(base_filtrada):
     # Aplicando os emojis à coluna 'Classificação'
     base_filtrada['Cat.'] = base_filtrada['Classificação'].map(emoji_map)
 
+    # Definir "Cat." como a primeira coluna
+    cols = base_filtrada.columns.tolist()
+    cols = ['Cat.'] + [col for col in cols if col != 'Cat.']
+    base_filtrada = base_filtrada[cols]
+
     # Quero que as justificativas dos casos aprovados fiquem em uma letra cinza com transparência
     def style_justificativa(row):
         if row['Classificação'] == 'Aprovado':
