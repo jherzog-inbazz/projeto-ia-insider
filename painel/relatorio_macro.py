@@ -23,7 +23,7 @@ def app_relatorio_macro(authenticator):
 
     base_filtrada = app_filtro_relatorio_macro()
     
-    base_filtrada = app_funcao_relatorio_macro(base_filtrada)
+    app_funcao_relatorio_macro(base_filtrada)
 
     
     
