@@ -76,6 +76,11 @@ def app_funcao_relatorio_macro(base_filtrada):
         
     base_filtrada = base_filtrada.style.apply(style_justificativa, axis=1)
 
+    # Selecionar as variáveis específicas
+    base_filtrada = base_filtrada[
+        ["Cat.","post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa"]
+        ]
+
     st.dataframe(
         base_filtrada,
         column_config={
