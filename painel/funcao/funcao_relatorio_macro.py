@@ -28,15 +28,16 @@ def app_funcao_relatorio_macro(base_filtrada):
             for classificacao, count in classificacao_counts.items():
                 st.markdown(f"- **{classificacao}**: {count}")
 
-
-    # Quero tirar o database_url da lista []
-    base_filtrada['database_url'] = base_filtrada['database_url'].apply(lambda x: ast.literal_eval(x)[0] if isinstance(x, str) and x.startswith('[') else x)
+    # Os casos que o database_url é nulo, quero que apareça 'Database_Ajust' e se permanecer nulo quero que apareça 'Database_Null'
+    base_filtrada['database_url'] = base_filtrada['database_url'].fillna('Database_Ajust')
+    base_filtrada['database_url'] = base_filtrada['database_url'].replace('', 'Database_Null')
 
 
     # Selecionar as variáveis específicas
     base_filtrada = base_filtrada[
         ["post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa","motivo"]
         ]
+    
     
 
     # Quero que as justificativas fiquem em formato de tópicos a cada . e colocar uma setinha antes de cada tópico
@@ -54,9 +55,7 @@ def app_funcao_relatorio_macro(base_filtrada):
     # Agora você pode aplicar o astype sem problemas
     base_filtrada['post_pk'] = base_filtrada['post_pk'].astype(int)
 
-    # Retirar o dabaser_url da lista []
-    base_filtrada['database_url'] = base_filtrada['database_url'].apply(lambda x: x if isinstance(x, str) else str(x))
-
+    
     # Mapeando as classificações para emojis
     emoji_map = {
         'Aprovado': '✅',
