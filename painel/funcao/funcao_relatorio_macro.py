@@ -39,6 +39,7 @@ def app_funcao_relatorio_macro(base_filtrada: pd.DataFrame):
         "Classificação",
         "Justificativa",
         "motivo",
+        "Database_Ajust"
     ]
     # Garante que colunas existam (evita KeyError se vier faltando algo)
     cols_keep = [c for c in cols_keep if c in base_filtrada.columns]
@@ -78,10 +79,11 @@ def app_funcao_relatorio_macro(base_filtrada: pd.DataFrame):
         
     base_filtrada = base_filtrada.style.apply(style_justificativa, axis=1)
 
-    # 6) Exibição (DataFrame puro; nada de .style.apply)
+    # 6) Exibição (DataFrame puro; nada de
     st.dataframe(
         base_filtrada,
         column_config={
+            "Cat.": "Cat.",
             "post_pk": st.column_config.TextColumn("ID da Publicação"),
             "nome_campanha": "Nome da Campanha",
             "post_type": "Tipo de Publicação",
@@ -91,7 +93,7 @@ def app_funcao_relatorio_macro(base_filtrada: pd.DataFrame):
             "Classificação": "Classificação do Modelo",
             "Justificativa": st.column_config.TextColumn(label="Justificativa do Modelo", width=600),
             "motivo": "Motivo",
-            "Cat.": "Cat.",
+            "Database_Ajust": st.column_config.LinkColumn("Link App", display_text="Link App"),
         },
         hide_index=True,
         use_container_width=True,
