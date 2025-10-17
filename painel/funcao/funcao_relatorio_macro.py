@@ -35,7 +35,7 @@ def app_funcao_relatorio_macro(base_filtrada):
 
     # Selecionar as variáveis específicas
     base_filtrada = base_filtrada[
-        ["post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa"]
+        ["post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa","motivo"]
         ]
     
 
@@ -91,7 +91,8 @@ def app_funcao_relatorio_macro(base_filtrada):
             "post_date": 'Data e Horário da Publicação',
             "database_url": st.column_config.LinkColumn("URL", display_text="Link da Publicação"),
             "Classificação": "Classificação do Modelo",
-            "Justificativa": st.column_config.TextColumn(label="Justificativa do Modelo", width=600)
+            "Justificativa": st.column_config.TextColumn(label="Justificativa do Modelo", width=600),
+            "motivo": "Motivo"
         },
         hide_index=True,
         use_container_width=True,
