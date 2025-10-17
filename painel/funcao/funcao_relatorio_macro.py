@@ -4,14 +4,17 @@ import pandas as pd
 import numpy as np
 import re
 
-def app_funcao_relatorio_macro(base_filtrada):
+def app_funcao_relatorio_macro(base_filtrada: pd.DataFrame):
     st.markdown("### Relatório de Publicações")
 
+    # --- Cabeçalho com contagens ---
     with st.container():
         col1, col2 = st.columns([1, 1], border=True)
+
         with col1:
             total_publicacoes = len(base_filtrada)
             st.markdown(f"###### Total de Publicações Analisadas: **{total_publicacoes}**")
+
         with col2:
             if "Classificação" in base_filtrada.columns:
                 classificacao_counts = base_filtrada["Classificação"].value_counts(dropna=False)
@@ -21,59 +24,69 @@ def app_funcao_relatorio_macro(base_filtrada):
 
     # --- Normalizações que evitam ArrowInvalid ---
 
-    # 1) URL: manter coluna de link com URL/None e separar um status textual
-    base_filtrada["database_url"] = base_filtrada["database_url"].astype("string")
+    # 1) URL: criar URL_Status e manter a coluna de link apenas com http(s) ou None
+    url_str = base_filtrada["database_url"].astype("string")
 
-    # marcar status antes de limpar a coluna de link
-    url_is_na = base_filtrada["database_url"].isna()
-    url_is_empty = base_filtrada["database_url"].str.strip().eq("")  # funciona com dtype string
-    base_filtrada["URL_Status"] = np.select(
-        [
-            url_is_na,          # NaN original
-            url_is_empty        # string vazia
-        ],
-        [
-            "Database_Ajust",
-            "Database_Null"
-        ],
-        default="OK"
-    )
+    base_filtrada["URL_Status"] = "OK"
+    base_filtrada.loc[url_str.isna(), "URL_Status"] = "Database_Ajust"
+    base_filtrada.loc[url_str.fillna("").str.strip().eq(""), "URL_Status"] = "Database_Null"
 
-    # a coluna de link precisa ser URL válida ou None
-    base_filtrada["database_url"] = base_filtrada["database_url"].where(
-        base_filtrada["database_url"].str.startswith(("http://", "https://"), na=False),
+    base_filtrada["database_url"] = url_str.where(
+        url_str.str.startswith(("http://", "https://"), na=False),
         None
     )
 
-    # 2) selecionar colunas na ordem desejada
-    cols_keep = ["post_pk", "nome_campanha", "post_type", "post_date",
-                 "database_url", "URL_Status", "Classificação", "Justificativa", "motivo"]
-    base_filtrada = base_filtrada[cols_keep]
+    # 2) Seleção e ordem de colunas
+    cols_keep = [
+        "post_pk",
+        "nome_campanha",
+        "post_type",
+        "post_date",
+        "database_url",
+        "URL_Status",
+        "Classificação",
+        "Justificativa",
+        "motivo",
+    ]
+    # Garante que colunas existam (evita KeyError se vier faltando algo)
+    cols_keep = [c for c in cols_keep if c in base_filtrada.columns]
+    base_filtrada = base_filtrada[cols_keep].copy()
 
-    # 3) bullets na Justificativa (sem HTML/Styler)
+    # 3) Bullets na Justificativa (sem HTML/Styler)
     def format_justificativa(text):
         if pd.isna(text):
             return text
         frases = re.split(r"\.\s*", str(text))
         frases_formatadas = [f"➔ {f.strip()}" for f in frases if f.strip()]
         return "\n".join(frases_formatadas)
-    base_filtrada["Justificativa"] = base_filtrada["Justificativa"].apply(format_justificativa).astype("string")
 
-    # 4) post_pk como inteiro nulo-seguro (evita erro de tipo)
-    base_filtrada["post_pk"] = pd.to_numeric(base_filtrada["post_pk"], errors="coerce").astype("Int64")
+    if "Justificativa" in base_filtrada.columns:
+        base_filtrada["Justificativa"] = (
+            base_filtrada["Justificativa"].apply(format_justificativa).astype("string")
+        )
 
-    # 5) emoji de categoria
+    # 4) post_pk como inteiro nulo-seguro
+    if "post_pk" in base_filtrada.columns:
+        base_filtrada["post_pk"] = pd.to_numeric(base_filtrada["post_pk"], errors="coerce").astype("Int64")
+
+    # 5) Emoji de categoria
     emoji_map = {"Aprovado": "✅", "Em Alerta": "⚠️", "Reprovado": "❌"}
-    base_filtrada["Cat."] = base_filtrada["Classificação"].map(emoji_map).astype("string")
+    if "Classificação" in base_filtrada.columns:
+        base_filtrada["Cat."] = base_filtrada["Classificação"].map(emoji_map).astype("string")
+        ordered_cols = ["Cat."] + [c for c in base_filtrada.columns if c != "Cat."]
+        base_filtrada = base_filtrada[ordered_cols]
 
-    # reordenar com Cat. primeiro
-    ordered_cols = ["Cat."] + [c for c in base_filtrada.columns if c != "Cat."]
-    base_filtrada = base_filtrada[ordered_cols]
 
-    # 6) Nada de .style.apply aqui (Styler pode quebrar a conversão Arrow).
-    #    Se quiser "cinza" para Aprovado, recomendo mostrar isso numa coluna auxiliar
-    #    (ex.: prefixo "[Aprovado]" na Justificativa) — Streamlit não aplica cor por célula no dataframe sem Styler.
+    # Quero que as justificativas dos casos aprovados fiquem em uma letra cinza com transparência
+    def style_justificativa(row):
+        if row['Classificação'] == 'Aprovado':
+            return ['color: rgba(128, 128, 128, 0.7)'] * len(row)
+        else:
+            return [''] * len(row)
+        
+    base_filtrada = base_filtrada.style.apply(style_justificativa, axis=1)
 
+    # 6) Exibição (DataFrame puro; nada de .style.apply)
     st.dataframe(
         base_filtrada,
         column_config={
@@ -86,9 +99,9 @@ def app_funcao_relatorio_macro(base_filtrada):
             "Classificação": "Classificação do Modelo",
             "Justificativa": st.column_config.TextColumn(label="Justificativa do Modelo", width=600),
             "motivo": "Motivo",
-            "Cat.": "Cat."
+            "Cat.": "Cat.",
         },
         hide_index=True,
         use_container_width=True,
-        height=560  # use int; "auto" pode causar comportamento inesperado
+        height=560,  # int (evita problemas com 'auto')
     )
