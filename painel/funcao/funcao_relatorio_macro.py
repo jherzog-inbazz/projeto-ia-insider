@@ -27,7 +27,6 @@ def app_funcao_relatorio_macro(base_filtrada: pd.DataFrame):
 
     # 1) URL: criar URL_Status e manter a coluna de link apenas com http(s) ou None
     # Quero tirar o database_url da lista []
-    base_filtrada['database_url'] = base_filtrada['database_url'].apply(lambda x: ast.literal_eval(x)[0] if isinstance(x, str) and x.startswith('[') else x)
     
     # 2) Seleção e ordem de colunas
     cols_keep = [
