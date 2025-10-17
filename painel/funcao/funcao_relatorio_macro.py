@@ -1,99 +1,94 @@
 from PIL import Image
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
-import ast
 
 def app_funcao_relatorio_macro(base_filtrada):
-
-    # Exibir o DataFrame no Streamlit com formatação
     st.markdown("### Relatório de Publicações")
 
     with st.container():
         col1, col2 = st.columns([1, 1], border=True)
-
         with col1:
-            # Quantidade de publicações analisadas
-            total_publicacoes = base_filtrada.shape[0]
-            st.markdown(
-                f"""
-                ###### Total de Publicações Analisadas: **{total_publicacoes}**
-                """
-            )
-
+            total_publicacoes = len(base_filtrada)
+            st.markdown(f"###### Total de Publicações Analisadas: **{total_publicacoes}**")
         with col2:
-            # Quantidade de publicações pelo tipo de classificação
-            classificacao_counts = base_filtrada['Classificação'].value_counts()
-            st.markdown("###### Publicações por Classificação:")
-            for classificacao, count in classificacao_counts.items():
-                st.markdown(f"- **{classificacao}**: {count}")
+            if "Classificação" in base_filtrada.columns:
+                classificacao_counts = base_filtrada["Classificação"].value_counts(dropna=False)
+                st.markdown("###### Publicações por Classificação:")
+                for classificacao, count in classificacao_counts.items():
+                    st.markdown(f"- **{classificacao}**: {count}")
 
-    # Os casos que o database_url é nulo, quero que apareça 'Database_Ajust' e se permanecer nulo quero que apareça 'Database_Null'
-    base_filtrada['database_url'] = base_filtrada['database_url'].fillna('Database_Ajust')
-    base_filtrada['database_url'] = base_filtrada['database_url'].replace('', 'Database_Null')
+    # --- Normalizações que evitam ArrowInvalid ---
 
+    # 1) URL: manter coluna de link com URL/None e separar um status textual
+    base_filtrada["database_url"] = base_filtrada["database_url"].astype("string")
 
-    # Selecionar as variáveis específicas
-    base_filtrada = base_filtrada[
-        ["post_pk", "nome_campanha", "post_type", "post_date", "database_url", "Classificação", "Justificativa","motivo"]
-        ]
-    
-    
+    # marcar status antes de limpar a coluna de link
+    url_is_na = base_filtrada["database_url"].isna()
+    url_is_empty = base_filtrada["database_url"].str.strip().eq("")  # funciona com dtype string
+    base_filtrada["URL_Status"] = np.select(
+        [
+            url_is_na,          # NaN original
+            url_is_empty        # string vazia
+        ],
+        [
+            "Database_Ajust",
+            "Database_Null"
+        ],
+        default="OK"
+    )
 
-    # Quero que as justificativas fiquem em formato de tópicos a cada . e colocar uma setinha antes de cada tópico
+    # a coluna de link precisa ser URL válida ou None
+    base_filtrada["database_url"] = base_filtrada["database_url"].where(
+        base_filtrada["database_url"].str.startswith(("http://", "https://"), na=False),
+        None
+    )
+
+    # 2) selecionar colunas na ordem desejada
+    cols_keep = ["post_pk", "nome_campanha", "post_type", "post_date",
+                 "database_url", "URL_Status", "Classificação", "Justificativa", "motivo"]
+    base_filtrada = base_filtrada[cols_keep]
+
+    # 3) bullets na Justificativa (sem HTML/Styler)
     def format_justificativa(text):
         if pd.isna(text):
             return text
-        # Dividir o texto em frases usando regex para considerar pontos seguidos de espaço ou fim de linha
-        frases = re.split(r'\.\s*', text)
-        # Adicionar uma seta antes de cada frase e remover frases vazias
-        frases_formatadas = [f"➔ {frase.strip()}" for frase in frases if frase.strip()]
-        # Juntar as frases formatadas com quebras de linha
+        frases = re.split(r"\.\s*", str(text))
+        frases_formatadas = [f"➔ {f.strip()}" for f in frases if f.strip()]
         return "\n".join(frases_formatadas)
-    base_filtrada['Justificativa'] = base_filtrada['Justificativa'].apply(format_justificativa)
+    base_filtrada["Justificativa"] = base_filtrada["Justificativa"].apply(format_justificativa).astype("string")
 
-    # Agora você pode aplicar o astype sem problemas
-    base_filtrada['post_pk'] = base_filtrada['post_pk'].astype(int)
+    # 4) post_pk como inteiro nulo-seguro (evita erro de tipo)
+    base_filtrada["post_pk"] = pd.to_numeric(base_filtrada["post_pk"], errors="coerce").astype("Int64")
 
-    
-    # Mapeando as classificações para emojis
-    emoji_map = {
-        'Aprovado': '✅',
-        'Em Alerta': '⚠️',
-        'Reprovado': '❌'
-    }
+    # 5) emoji de categoria
+    emoji_map = {"Aprovado": "✅", "Em Alerta": "⚠️", "Reprovado": "❌"}
+    base_filtrada["Cat."] = base_filtrada["Classificação"].map(emoji_map).astype("string")
 
-    # Aplicando os emojis à coluna 'Classificação'
-    base_filtrada['Cat.'] = base_filtrada['Classificação'].map(emoji_map)
+    # reordenar com Cat. primeiro
+    ordered_cols = ["Cat."] + [c for c in base_filtrada.columns if c != "Cat."]
+    base_filtrada = base_filtrada[ordered_cols]
 
-    # Definir "Cat." como a primeira coluna
-    cols = base_filtrada.columns.tolist()
-    cols = ['Cat.'] + [col for col in cols if col != 'Cat.']
-    base_filtrada = base_filtrada[cols]
-
-    # Quero que as justificativas dos casos aprovados fiquem em uma letra cinza com transparência
-    def style_justificativa(row):
-        if row['Classificação'] == 'Aprovado':
-            return ['color: rgba(128, 128, 128, 0.7)'] * len(row)
-        else:
-            return [''] * len(row)
-        
-    base_filtrada = base_filtrada.style.apply(style_justificativa, axis=1)
-
+    # 6) Nada de .style.apply aqui (Styler pode quebrar a conversão Arrow).
+    #    Se quiser "cinza" para Aprovado, recomendo mostrar isso numa coluna auxiliar
+    #    (ex.: prefixo "[Aprovado]" na Justificativa) — Streamlit não aplica cor por célula no dataframe sem Styler.
 
     st.dataframe(
         base_filtrada,
         column_config={
             "post_pk": st.column_config.TextColumn("ID da Publicação"),
-            "nome_campanha": 'Nome da Campanha',
-            "post_type": 'Tipo de Publicação',
-            "post_date": 'Data e Horário da Publicação',
+            "nome_campanha": "Nome da Campanha",
+            "post_type": "Tipo de Publicação",
+            "post_date": "Data e Horário da Publicação",
             "database_url": st.column_config.LinkColumn("URL", display_text="Link da Publicação"),
+            "URL_Status": "Status da URL",
             "Classificação": "Classificação do Modelo",
             "Justificativa": st.column_config.TextColumn(label="Justificativa do Modelo", width=600),
-            "motivo": "Motivo"
+            "motivo": "Motivo",
+            "Cat.": "Cat."
         },
         hide_index=True,
         use_container_width=True,
-        height='auto'  # Ajusta o valor da altura da tabela
+        height=560  # use int; "auto" pode causar comportamento inesperado
     )
